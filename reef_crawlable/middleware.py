@@ -1,9 +1,4 @@
 import logging
-from bluebottle.fundraisers.models import Fundraiser
-from bluebottle.projects.models import Project
-from bluebottle.tasks.models import Task
-from django.http.response import HttpResponsePermanentRedirect
-from django.template.response import SimpleTemplateResponse
 import re
 import time
 import os
@@ -11,6 +6,8 @@ import urllib
 import urlparse
 import tempfile
 
+from django.http.response import HttpResponsePermanentRedirect
+from django.template.response import SimpleTemplateResponse
 from django.http import HttpResponse, HttpResponseServerError
 from django.conf import settings
 from django.utils import html as html_utils
@@ -20,6 +17,8 @@ from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.utils import is_connectable
 from selenium.webdriver.phantomjs.webdriver import WebDriver
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
+
+from .utils import get_task_model, get_project_model, get_fundraiser_model
 
 
 logger = logging.getLogger(__name__)
@@ -135,6 +134,7 @@ class HashbangMiddleware(object):
         if request.method == 'GET' and ESCAPED_FRAGMENT in request.GET:
             original_url = request.build_absolute_uri()
             parsed_url = urlparse.urlparse(original_url)
+            PROJECT_MODEL = get_project_model()
 
             # Update URL with hashbang.
             query = dict(urlparse.parse_qsl(parsed_url.query))
@@ -151,14 +151,14 @@ class HashbangMiddleware(object):
                 if slug != slug.lower():
                     return HttpResponsePermanentRedirect(original_url.lower())
                 try:
-                    project = Project.objects.get(slug=slug)
+                    project = PROJECT_MODEL.objects.get(slug=slug)
                     return SimpleTemplateResponse(template='crawlable/project.html', context={'project': project})
-                except Project.DoesNotExist:
+                except PROJECT_MODEL.DoesNotExist:
                     url = ''.join([parsed_url.path, '?', ESCAPED_FRAGMENT, '=', '/projects'])
                     return HttpResponsePermanentRedirect(url)
 
             if route[1] == 'projects' and len(route) == 2:
-                projects = Project.objects.order_by('popularity').all()[:10]
+                projects = PROJECT_MODEL.objects.order_by('popularity').all()[:10]
                 url = ''.join([parsed_url.path, HASHBANG, '/projects'])
                 return SimpleTemplateResponse(template='crawlable/project_list.html',
                                               context={'projects': projects, 'url': url})
@@ -167,13 +167,13 @@ class HashbangMiddleware(object):
             # Task page
             if route[1] == 'tasks' and len(route) > 2:
                 task_id = route[2].split('?')[0]
-                task = Task.objects.get(id=task_id)
+                task = get_task_model().objects.get(id=task_id)
                 return SimpleTemplateResponse(template='crawlable/task.html', context={'task': task})
 
             # Fundraiser page
             if route[1] == 'fundraisers' and len(route) > 2:
                 fundraiser_id = route[2].split('?')[0]
-                fundraiser = Fundraiser.objects.get(id=fundraiser_id)
+                fundraiser = get_fundraiser_model().objects.get(id=fundraiser_id)
                 return SimpleTemplateResponse(template='crawlable/fundraiser.html', context={'fundraiser': fundraiser})
 
             # Update query string by removing the escaped fragment.

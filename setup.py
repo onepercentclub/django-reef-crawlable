@@ -19,9 +19,16 @@ setup(
     author="1%Club Developers",
     author_email="devteam@onepercentclub.com", 
     install_requires=[
-        'Django >= 1.6.8',
-        'selenium==2.44.0'
+        'Django>=1.6.8',
+        'selenium==2.44.0',
+        'sorl-thumbnail==11.12',
     ],
+    tests_require=[
+        'django-nose==1.3',
+        'django-setuptest==0.1.4',
+        'mock'
+    ],
+    test_suite = "reef_crawlable.runtests.runtests",
     classifiers=[
         'Environment :: Web Environment',
         'Framework :: Django',

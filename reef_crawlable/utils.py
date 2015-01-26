@@ -3,8 +3,14 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.models import get_model
 
 
-def get_client_model():
-    return get_model_class('CLIENT_MODEL')
+def get_project_model():
+    return get_model_class('PROJECTS_PROJECT_MODEL')
+
+def get_fundraiser_model():
+    return get_model_class('FUNDRAISERS_FUNDRAISER_MODEL')
+
+def get_task_model():
+    return get_model_class('TASKS_TASK_MODEL')
 
 def get_model_class(model_name=None):
     """
