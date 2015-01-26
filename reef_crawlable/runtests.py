@@ -23,8 +23,6 @@ if not settings.configured:
 from django_nose import NoseTestSuiteRunner
 
 def runtests(*test_labels):
-    call_command('syncdb', verbosity=0)
-
     runner = NoseTestSuiteRunner(verbosity=1, interactive=True)
     failures = runner.run_tests(test_labels)
     sys.exit(failures)
