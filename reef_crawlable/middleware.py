@@ -17,6 +17,9 @@ from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.utils import is_connectable
 from selenium.webdriver.phantomjs.webdriver import WebDriver
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 from .utils import get_task_model, get_project_model, get_fundraiser_model
 
@@ -129,6 +132,9 @@ class HashbangMiddleware(object):
     search engine.
     """
 
+    def __init__(self):
+        self._content = ''
+
     def process_request(self, request):
 
         if request.method == 'GET' and ESCAPED_FRAGMENT in request.GET:
@@ -163,7 +169,6 @@ class HashbangMiddleware(object):
                 return SimpleTemplateResponse(template='crawlable/project_list.html',
                                               context={'projects': projects, 'url': url})
 
-
             # Task page
             if route[1] == 'tasks' and len(route) > 2:
                 task_id = route[2].split('?')[0]
@@ -184,7 +189,8 @@ class HashbangMiddleware(object):
             # Build new absolute URL.
             # NOTE: Django behind a certain web/WSGI-server configuration cannot determine if a request was made using
             # HTTPS or HTTP. We consult a special setting for that.
-            if getattr(settings, 'CRAWLABLE_FORCE_HTTPS', False):
+            force_https = getattr(settings, 'CRAWLABLE_FORCE_HTTPS', False)
+            if force_https:
                 scheme = 'https'
             else:
                 scheme = parsed_url.scheme
@@ -199,28 +205,36 @@ class HashbangMiddleware(object):
 
 
             try:
-                driver = web_cache.get_driver()
-                logger.debug('Generating flat content from "%s" for "%s"%s.', absolute_url, original_url,
-                             ' (forced HTTPS)' if getattr(settings, CRAWLABLE_FORCE_HTTPS, False) else '')
-                driver.get(absolute_url)
+                cache_key = CACHE_PREFIX + re.sub(r'\/|-|#|\!', '_', path)
 
-                # TODO: This should be replaced with something smart that waits for a certain trigger that all JS
-                # is done.
-                time.sleep(3)
-
-                content = driver.page_source
-                # Remove all javascript, since its mostly useless now.
-                script_tags_template = re.compile(r'<script([^/]*/>|(\s+[^>]*><\/script>))', re.U)
-                content = script_tags_template.sub('', content)
-                cache.cache.set(CACHE_PREFIX+query,content)
-            except Exception, e:
-                
-                if cache.cache.has_key(CACHE_PREFIX+query):
-                    content = cache.cache.get(CACHE_PREFIX+query)
+                if cache.cache.has_key(cache_key):
+                    self._content = cache.cache.get(cache_key)
                 else:
-                    logger.error('There was an error rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
-                    return HttpResponseServerError()
+                    cssSelector = getattr(settings, 'CRAWLABLE_CSS_SELECTOR', '#content')
+                    driver = web_cache.get_driver()
+                    logger.debug('Generating flat content from "%s" for "%s"%s.', absolute_url, original_url,
+                                 ' (forced HTTPS)' if force_https else '')
+                    driver.get(absolute_url)
+                    self._content = driver.page_source
 
-            return HttpResponse(content=content)
+                    def _process_content():
+                        # Remove all javascript, since its mostly useless now.
+                        self._content = re.subn(r'<(script).*?</\1>(?s)', '', self._content)[0]
+                        cache.cache.set(cache_key, self._content)
+
+                    delay = 5 # seconds
+                    driver.implicitly_wait(2)
+                    try:
+                        WebDriverWait(driver, delay).until(lambda d : d.find_element_by_css_selector(cssSelector))
+                        _process_content()
+                    except TimeoutException:
+                        logger.error('There was a timeout rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
+
+                return HttpResponse(content=self._content)
+
+            except Exception, e:
+                logger.error('There was an error rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
+                
+                return HttpResponseServerError()
 
         return None
