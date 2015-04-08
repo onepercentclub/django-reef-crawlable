@@ -228,12 +228,12 @@ class HashbangMiddleware(object):
                         WebDriverWait(driver, delay).until(lambda d : d.find_element_by_css_selector(cssSelector))
                         _process_content()
                     except TimeoutException:
-                        logger.error('There was a timeout rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
+                        logger.error('There was a crawable timeout rendering "%s" for "%s"', absolute_url, original_url)
 
                 return HttpResponse(content=self._content)
 
             except Exception, e:
-                logger.error('There was an error rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
+                logger.error('There was a crawable error rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
                 
                 return HttpResponseServerError()
 
