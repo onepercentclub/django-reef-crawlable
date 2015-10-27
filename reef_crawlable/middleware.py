@@ -140,46 +140,10 @@ class HashbangMiddleware(object):
         if request.method == 'GET' and ESCAPED_FRAGMENT in request.GET:
             original_url = request.build_absolute_uri()
             parsed_url = urlparse.urlparse(original_url)
-            PROJECT_MODEL = get_project_model()
 
             # Update URL with hashbang.
             query = dict(urlparse.parse_qsl(parsed_url.query))
             path = ''.join([parsed_url.path, HASHBANG, query.get(ESCAPED_FRAGMENT, '')])
-
-            # See if it's a page we now so that we can sent it back quickly.
-            route = parsed_url.query.replace('%2F', '/').split('/')
-
-            # Project page
-            if route[1] == 'projects' and len(route) > 2:
-                slug = route[2]
-                # strip query string
-                slug = slug.split('?')[0]
-                if slug != slug.lower():
-                    return HttpResponsePermanentRedirect(original_url.lower())
-                try:
-                    project = PROJECT_MODEL.objects.get(slug=slug)
-                    return SimpleTemplateResponse(template='crawlable/project.html', context={'project': project})
-                except PROJECT_MODEL.DoesNotExist:
-                    url = ''.join([parsed_url.path, '?', ESCAPED_FRAGMENT, '=', '/projects'])
-                    return HttpResponsePermanentRedirect(url)
-
-            if route[1] == 'projects' and len(route) == 2:
-                projects = PROJECT_MODEL.objects.order_by('popularity').all()[:10]
-                url = ''.join([parsed_url.path, HASHBANG, '/projects'])
-                return SimpleTemplateResponse(template='crawlable/project_list.html',
-                                              context={'projects': projects, 'url': url})
-
-            # Task page
-            if route[1] == 'tasks' and len(route) > 2:
-                task_id = route[2].split('?')[0]
-                task = get_task_model().objects.get(id=task_id)
-                return SimpleTemplateResponse(template='crawlable/task.html', context={'task': task})
-
-            # Fundraiser page
-            if route[1] == 'fundraisers' and len(route) > 2:
-                fundraiser_id = route[2].split('?')[0]
-                fundraiser = get_fundraiser_model().objects.get(id=fundraiser_id)
-                return SimpleTemplateResponse(template='crawlable/fundraiser.html', context={'fundraiser': fundraiser})
 
             # Update query string by removing the escaped fragment.
             if ESCAPED_FRAGMENT in query:
@@ -194,6 +158,7 @@ class HashbangMiddleware(object):
                 scheme = 'https'
             else:
                 scheme = parsed_url.scheme
+
             absolute_url = urlparse.urlunparse([
                 scheme,
                 parsed_url.netloc,
@@ -202,7 +167,6 @@ class HashbangMiddleware(object):
                 query,
                 parsed_url.fragment
             ])
-
 
             try:
                 cache_key = CACHE_PREFIX + re.sub(r'\/|-|#|\!', '_', path)
@@ -234,7 +198,7 @@ class HashbangMiddleware(object):
 
             except Exception, e:
                 logger.error('There was a crawable error rendering "%s" for "%s" with the web driver: %s', absolute_url, original_url, e)
-                
+
                 return HttpResponseServerError()
 
         return None
