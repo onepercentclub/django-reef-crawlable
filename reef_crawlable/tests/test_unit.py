@@ -33,5 +33,5 @@ class HashbangMiddlewareTests(TestCase):
 
         self.assertIsInstance(result, HttpResponse)
         self.assertContains(result, self.test_url)
-        self.assertContains(result, 'Campaigns')
+        self.assertContains(result, 'link')
 
